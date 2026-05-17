@@ -11,22 +11,25 @@ import {
   MessageCircle,
   CheckCircle2,
   XCircle,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 
 interface ExamSession {
   id: string;
-  status: 'ongoing' | 'submitted' | 'blocked';
-  started_at: string;
+  status: 'ongoing' | 'submitted' | 'blocked' | 'awaiting_late_approval' | 'late_approved';
+  start_time: string;
   siswa_id: string;
   siswa: {
     full_name: string;
     role: string;
   };
   exam: {
+    id: string;
     title: string;
   };
 }
@@ -43,6 +46,7 @@ export default function ExamApproval() {
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [logs, setLogs] = useState<ExamLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const supabase = getSupabase();
 
@@ -74,6 +78,8 @@ export default function ExamApproval() {
             setSessions(prev => 
               prev.map(s => s.id === payload.new.id ? { ...s, status: payload.new.status } : s)
             );
+          } else if (payload.eventType === 'DELETE') {
+            setSessions(prev => prev.filter(s => s.id !== payload.old.id));
           }
         }
       )
@@ -88,6 +94,24 @@ export default function ExamApproval() {
   const fetchActiveSessions = async () => {
     setLoading(true);
     try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      // 1. Get exams created by this teacher
+      const { data: myExams } = await supabase
+        .from('exams')
+        .select('id')
+        .eq('created_by', authUser.id);
+      
+      const myExamIds = (myExams || []).map(e => e.id);
+      
+      if (myExamIds.length === 0) {
+        setSessions([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Get sessions for those exams
       const { data, error } = await supabase
         .from('exam_sessions')
         .select(`
@@ -95,7 +119,9 @@ export default function ExamApproval() {
           siswa:profiles!siswa_id(full_name),
           exam:exams(title)
         `)
-        .order('started_at', { ascending: false });
+        .in('exam_id', myExamIds)
+        .order('start_time', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
       setSessions(data as any[]);
@@ -107,6 +133,11 @@ export default function ExamApproval() {
   };
 
   const updateStatus = async (sessionId: string, newStatus: string) => {
+    setUpdatingId(sessionId);
+    // Optimistic Update
+    const prevSessions = [...sessions];
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, status: newStatus as any } : s));
+
     try {
       const { error } = await supabase
         .from('exam_sessions')
@@ -122,8 +153,13 @@ export default function ExamApproval() {
         details: `Guru mengubah status menjadi ${newStatus}`
       });
 
+      toast.success(`Status diperbarui ke ${newStatus.replace(/_/g, ' ')}`);
     } catch (err) {
       console.error('Error updating status:', err);
+      toast.error('Gagal memperbarui status.');
+      setSessions(prevSessions); // Rollback
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -136,19 +172,19 @@ export default function ExamApproval() {
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <Activity className="w-8 h-8 text-blue-600 animate-pulse" />
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+            <Activity className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-pulse" />
             Live Exam Monitoring
           </h2>
-          <p className="text-slate-500 font-medium">Pantau aktivitas ujian siswa secara real-time.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Pantau aktivitas ujian siswa secara real-time.</p>
         </div>
         
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-           <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl flex items-center gap-2">
+        <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5">
+           <div className="px-4 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-xl flex items-center gap-2">
              <Users className="w-5 h-5" />
              <span className="font-bold">{sessions.filter(s => s.status === 'ongoing').length} Aktif</span>
            </div>
-           <div className="px-4 py-2 bg-red-50 text-red-700 rounded-xl flex items-center gap-2">
+           <div className="px-4 py-2 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 rounded-xl flex items-center gap-2">
              <AlertCircle className="w-5 h-5" />
              <span className="font-bold">{sessions.filter(s => s.status === 'blocked').length} Terblokir</span>
            </div>
@@ -158,21 +194,22 @@ export default function ExamApproval() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Monitor List */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
-            <div className="p-6 border-b border-slate-100 flex items-center gap-4">
-               <div className="flex-1 relative">
-                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-200 dark:border-white/5 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
+            <div className="p-6 border-b border-slate-100 dark:border-white/5 flex items-center gap-4 bg-slate-50/50 dark:bg-slate-950/20">
+               <div className="flex-1 relative w-full">
+                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-600" />
                  <input 
                    type="text" 
                    placeholder="Cari siswa atau mata pelajaran..."
                    value={searchQuery}
                    onChange={(e) => setSearchQuery(e.target.value)}
-                   className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                   className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-2xl text-sm focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-slate-900 dark:text-white font-bold placeholder:text-slate-300 dark:placeholder:text-slate-800"
                  />
                </div>
                <button 
                  onClick={fetchActiveSessions}
-                 className="p-3 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-2xl transition-all"
+                 className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 rounded-2xl transition-all border border-slate-200 dark:border-white/5"
+                 title="Refresh"
                >
                  <Activity className="w-5 h-5" />
                </button>
@@ -200,11 +237,14 @@ export default function ExamApproval() {
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg",
-                          session.status === 'ongoing' ? "bg-blue-600 shadow-blue-100" : 
-                          session.status === 'blocked' ? "bg-red-600 shadow-red-100" : "bg-slate-100 shadow-transparent"
+                          session.status === 'ongoing' || session.status === 'late_approved' ? "bg-blue-600 shadow-blue-100" : 
+                          session.status === 'blocked' ? "bg-red-600 shadow-red-100" : 
+                          session.status === 'awaiting_late_approval' ? "bg-amber-500 shadow-amber-100" :
+                          "bg-slate-100 shadow-transparent"
                         )}>
-                          {session.status === 'ongoing' ? <Clock className="w-6 h-6 text-white" /> : 
+                          {session.status === 'ongoing' || session.status === 'late_approved' ? <Clock className="w-6 h-6 text-white" /> : 
                            session.status === 'blocked' ? <Lock className="w-6 h-6 text-white" /> : 
+                           session.status === 'awaiting_late_approval' ? <Shield className="w-6 h-6 text-white animate-pulse" /> :
                            <CheckCircle2 className="w-6 h-6 text-slate-400" />}
                         </div>
                         <div>
@@ -213,26 +253,53 @@ export default function ExamApproval() {
                             <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">{session.exam?.title}</span>
                             <span className="w-1 h-1 bg-slate-200 rounded-full" />
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                              Mulai: {new Date(session.started_at).toLocaleTimeString()}
+                              {session.status === 'awaiting_late_approval' ? 'MENUNGGU IZIN' : `Mulai: ${(() => {
+                                const d = new Date(session.start_time);
+                                return `${d.getHours().toString().padStart(2, '0')}.${d.getMinutes().toString().padStart(2, '0')}`;
+                              })()}`}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
-                         {session.status === 'blocked' ? (
+                         {session.status === 'awaiting_late_approval' ? (
+                           <div className="flex items-center gap-2">
+                             <button 
+                               onClick={() => updateStatus(session.id, 'late_approved')}
+                               disabled={updatingId === session.id}
+                               className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                             >
+                               {updatingId === session.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                               Izinkan Ujian
+                             </button>
+                             <button 
+                               onClick={() => updateStatus(session.id, 'blocked')}
+                               disabled={updatingId === session.id}
+                               className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-xs hover:bg-rose-100 transition-all disabled:opacity-50"
+                             >
+                               Tolak
+                             </button>
+                           </div>
+                         ) : session.status === 'blocked' ? (
                            <button 
                              onClick={() => updateStatus(session.id, 'ongoing')}
-                             className="px-4 py-2 bg-green-50 text-green-700 rounded-xl font-black text-xs hover:bg-green-100 transition-all flex items-center gap-2"
+                             disabled={updatingId === session.id}
+                             className="px-4 py-2 bg-green-50 text-green-700 rounded-xl font-black text-xs hover:bg-green-100 transition-all flex items-center gap-2 disabled:opacity-50"
                            >
-                             <Unlock className="w-4 h-4" /> Buka Akses
+                             <Unlock className="w-4 h-4" /> 
+                             {updatingId === session.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                             Buka Akses
                            </button>
                          ) : session.status === 'ongoing' ? (
                            <button 
                              onClick={() => updateStatus(session.id, 'blocked')}
-                             className="px-4 py-2 bg-red-50 text-red-700 rounded-xl font-black text-xs hover:bg-red-100 transition-all flex items-center gap-2"
+                             disabled={updatingId === session.id}
+                             className="px-4 py-2 bg-red-50 text-red-700 rounded-xl font-black text-xs hover:bg-red-100 transition-all flex items-center gap-2 disabled:opacity-50"
                            >
-                             <Lock className="w-4 h-4" /> Blokir
+                             <Lock className="w-4 h-4" /> 
+                             {updatingId === session.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                             Blokir
                            </button>
                          ) : (
                            <span className="px-4 py-2 bg-slate-50 text-slate-500 rounded-xl font-black text-xs">Selesai</span>
@@ -252,10 +319,12 @@ export default function ExamApproval() {
         {/* Real-time Activity Feed */}
         <div className="space-y-6">
           <div className="bg-slate-900 rounded-[32px] p-6 min-h-[400px] flex flex-col shadow-2xl shadow-slate-900/20">
-            <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-               <span className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
-               Real-time Logs
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-white font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3">
+                 <span className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                 Real-time Logs
+              </h3>
+            </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
               <AnimatePresence mode="popLayout">
@@ -278,7 +347,15 @@ export default function ExamApproval() {
                         <span className="font-black uppercase tracking-widest opacity-60">
                            {log.event_type.replace('_', ' ')}
                         </span>
-                        <span className="text-[10px] font-bold opacity-40">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                        <span className="text-[10px] font-bold opacity-40">
+                          {(() => {
+                            const d = new Date(log.created_at);
+                            const h = d.getHours().toString().padStart(2, '0');
+                            const m = d.getMinutes().toString().padStart(2, '0');
+                            const s = d.getSeconds().toString().padStart(2, '0');
+                            return `${h}.${m}.${s}`;
+                          })()}
+                        </span>
                       </div>
                       <p className="leading-relaxed">{log.details}</p>
                     </motion.div>

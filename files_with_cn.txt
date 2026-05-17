@@ -1,0 +1,14 @@
+src/lib/utils.ts
+src/pages/guru/ExamSchedule.tsx
+src/pages/guru/Results.tsx
+src/pages/guru/ExamApproval.tsx
+src/pages/guru/QuestionBank.tsx
+src/pages/LandingPage.tsx
+src/pages/exam/ExamList.tsx
+src/pages/exam/History.tsx
+src/pages/exam/ExamRoom.tsx
+src/pages/admin/ClassManagement.tsx
+src/pages/admin/UsersManagement.tsx
+src/pages/Dashboard.tsx
+src/components/layouts/AppLayout.tsx
+src/components/ThemeToggle.tsx

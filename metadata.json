@@ -1,6 +1,8 @@
 {
-  "name": "EduTest46",
-  "description": "A sophisticated Computer Based Test (CBT) platform with real-time anti-cheating, automated scoring, and comprehensive exam management for schools.",
+  "name": "Go46 - SMKN 46 JAKARTA",
+  "description": "Platform Ujian Digital Terpadu khusus SMKN 46 Jakarta dengan sistem anti-curang real-time.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

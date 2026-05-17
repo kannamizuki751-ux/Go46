@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { 
-  Trophy, 
+  Trophy,
   Search, 
-  Download, 
+  Download,
   Filter,
   CheckCircle2,
   XCircle,
@@ -10,13 +10,28 @@ import {
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
+
+interface Question {
+  id: string;
+  subject: string;
+  question_text: string;
+  options: string[];
+  correct_answer: number;
+  created_at: string;
+}
 
 interface ExamResult {
   id: string;
   exam: { title: string };
-  siswa: { full_name: string };
+  siswa: { 
+    full_name: string;
+    class?: string;
+    major?: string;
+    class_index?: string;
+  };
   score: number;
   total_questions: number;
   correct_answers: number;
@@ -25,17 +40,49 @@ interface ExamResult {
 
 export default function Results() {
   const [results, setResults] = useState<ExamResult[]>([]);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const supabase = getSupabase();
 
   useEffect(() => {
+    fetchUser();
     fetchResults();
   }, []);
+
+  const fetchUser = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+      setUser(profile);
+    }
+  };
 
   const fetchResults = async () => {
     setLoading(true);
     try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      // 1. Get exams created by this teacher
+      const { data: myExams } = await supabase
+        .from('exams')
+        .select('id')
+        .eq('created_by', authUser.id);
+      
+      const myExamIds = (myExams || []).map(e => e.id);
+      
+      if (myExamIds.length === 0) {
+        setResults([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Get sessions for those exams
       const { data, error } = await supabase
         .from('exam_sessions')
         .select(`
@@ -44,16 +91,31 @@ export default function Results() {
           total_questions,
           correct_answers,
           completed_at,
-          exam:exams(title),
-          siswa:profiles!siswa_id(full_name)
+          exam_id,
+          siswa_id
         `)
+        .in('exam_id', myExamIds)
         .eq('status', 'submitted')
         .order('completed_at', { ascending: false });
 
       if (error) throw error;
-      setResults(data as any[]);
-    } catch (err) {
-      console.error('Error fetching results:', err);
+
+      // Ambil info pendukung (Exam & Siswa) secara manual untuk kestabilan
+      const resultsWithInfo = await Promise.all((data || []).map(async (session) => {
+        const { data: examData } = await supabase.from('exams').select('title').eq('id', session.exam_id).single();
+        const { data: userData } = await supabase.from('profiles').select('full_name, class, major').eq('id', session.siswa_id).single();
+        
+        return {
+          ...session,
+          exam: examData || { title: 'Ujian dihapus' },
+          siswa: userData || { full_name: 'Siswa tidak ditemukan' }
+        };
+      }));
+
+      setResults(resultsWithInfo as any[]);
+    } catch (err: any) {
+      console.error('Master results fetch error:', err);
+      toast.error(`Gagal Sinkron: ${err.message || 'Cek koneksi database'}`);
     } finally {
       setLoading(false);
     }
@@ -69,15 +131,20 @@ export default function Results() {
     : 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Hasil & Analisis</h2>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Hasil & Analisis</h2>
           <p className="text-slate-500 font-medium">Rekapitulasi nilai dan performa siswa secara otomatis.</p>
         </div>
-        <button className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-xl shadow-slate-200">
+        <button 
+          className={cn(
+            "inline-flex items-center gap-2 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer bg-gradient-to-r",
+            user?.role === 'admin' ? "from-accent to-blue-600 shadow-accent/20" : "from-indigo-600 to-indigo-500 shadow-indigo-600/20"
+          )}
+        >
           <Download className="w-5 h-5" />
-          Export Excel
+          <span>Export Excel</span>
         </button>
       </div>
 
@@ -142,22 +209,31 @@ export default function Results() {
                {loading ? (
                  <tr>
                    <td colSpan={5} className="px-8 py-20 text-center">
-                     <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-4" />
+                     <Loader2 className={cn("w-10 h-10 animate-spin mx-auto mb-4", user?.role === 'admin' ? "text-accent" : "text-indigo-600")} />
                      <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Menarik Data Hasil...</p>
                    </td>
                  </tr>
                ) : filteredResults.length === 0 ? (
                  <tr>
                    <td colSpan={5} className="px-8 py-20 text-center text-slate-400 font-bold">
-                     Belum ada hasil ujian yang tersedia.
+                     <div className="flex flex-col items-center justify-center space-y-4 py-10">
+                        <p className="text-slate-400 font-bold">Belum ada hasil ujian yang tersedia.</p>
+                     </div>
                    </td>
                  </tr>
                ) : (
                  filteredResults.map((r) => (
                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                     <td className="px-8 py-5 font-bold text-slate-900">{r.siswa?.full_name}</td>
                      <td className="px-8 py-5">
-                       <span className="text-xs font-black text-blue-600 uppercase tracking-widest">{r.exam?.title}</span>
+                        <p className="font-bold text-slate-900">{r.siswa?.full_name}</p>
+                        {r.siswa?.class && (
+                          <p className="text-[10px] font-black text-slate-400 mt-0.5 uppercase tracking-tighter">
+                            {r.siswa.class} {r.siswa.major} {r.siswa.class_index || ''}
+                          </p>
+                        )}
+                     </td>
+                     <td className="px-8 py-5">
+                       <span className={cn("text-xs font-black uppercase tracking-widest", user?.role === 'admin' ? "text-accent" : "text-indigo-600")}>{r.exam?.title}</span>
                      </td>
                      <td className="px-8 py-5 text-center">
                        <span className={cn(
@@ -172,7 +248,7 @@ export default function Results() {
                           <span className="text-sm font-bold text-slate-700">{r.correct_answers} / {r.total_questions}</span>
                           <div className="w-16 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
                             <div 
-                              className="h-full bg-blue-500 rounded-full" 
+                              className={cn("h-full rounded-full", user?.role === 'admin' ? "bg-accent" : "bg-indigo-600")} 
                               style={{ width: `${(r.correct_answers/r.total_questions)*100}%` }}
                             />
                           </div>
@@ -191,3 +267,4 @@ export default function Results() {
     </div>
   );
 }
+

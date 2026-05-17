@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import toast from 'react-hot-toast';
 import { 
   Shield, 
   Clock, 
@@ -20,7 +21,7 @@ import { getSupabase } from '../../lib/supabase';
 interface Question {
   id: string;
   subject: string;
-  content: string;
+  question_text: string;
   options: string[];
   correct_answer: number;
 }
@@ -48,14 +49,25 @@ export default function ExamRoom() {
   const [loading, setLoading] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  const initTimer = (sessionData: any, examData: ExamData) => {
+    const start = new Date(sessionData.start_time || sessionData.created_at).getTime();
+    const duration = examData.duration_minutes * 60 * 1000;
+    const now = Date.now();
+    const remaining = Math.max(0, Math.floor((start + duration - now) / 1000));
+    setTimeLeft(remaining);
+  };
+
   // Initialize Exam & Session
   useEffect(() => {
+    let channel: any = null;
+    let isMounted = true;
+
     const initExam = async () => {
       setLoading(true);
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          navigate('/login');
+        if (!user || !isMounted) {
+          if (!user) navigate('/login');
           return;
         }
 
@@ -66,66 +78,122 @@ export default function ExamRoom() {
           .eq('id', examId)
           .single();
 
-        if (examError) throw examError;
-        setExam(examData);
+        if (examError || !isMounted) throw examError;
 
-        // 2. Fetch Questions (Linked through exam_questions)
-        const { data: qData, error: qError } = await supabase
-          .from('exam_questions')
-          .select('questions(*)')
-          .eq('exam_id', examId);
-
-        if (qError) throw qError;
-        setQuestions(qData.map((d: any) => d.questions));
-
-        // 3. Create or Fetch Session
-        const { data: sessionData, error: sError } = await supabase
+        // 2. Fetch or Create Session
+        let { data: activeSession, error: sError } = await supabase
           .from('exam_sessions')
-          .upsert({ 
-            exam_id: examId, 
-            siswa_id: user.id,
-            status: 'ongoing'
-          })
-          .select()
-          .single();
+          .select('*')
+          .eq('exam_id', examId)
+          .eq('siswa_id', user.id)
+          .maybeSingle();
 
         if (sError) throw sError;
-        setSessionId(sessionData.id);
-        setIsBlocked(sessionData.status === 'blocked');
-        
-        // Calculate remaining time
-        const start = new Date(sessionData.started_at).getTime();
-        const duration = examData.duration_minutes * 60 * 1000;
-        const now = Date.now();
-        const remaining = Math.max(0, Math.floor((start + duration - now) / 1000));
-        setTimeLeft(remaining);
 
-        // 4. Real-time listener for this session (if Guru unblocks)
-        const channel = supabase
-          .channel(`session_${sessionData.id}`)
+        if (!activeSession) {
+          const { data: newData, error: createError } = await supabase
+            .from('exam_sessions')
+            .insert({ 
+              exam_id: examId,
+              siswa_id: user.id,
+              status: 'ongoing',
+              start_time: new Date().toISOString()
+            })
+            .select()
+            .single();
+          
+          if (createError) throw createError;
+          activeSession = newData;
+        }
+
+        if (!activeSession || !isMounted) return;
+
+        // Time Enforcement - Only check if NOT late_approved
+        if (activeSession.status !== 'late_approved') {
+          const now = Date.now();
+          const start = new Date(examData.start_time).getTime();
+          const end = new Date(examData.end_time || (start + examData.duration_minutes * 60 * 1000)).getTime();
+          
+          if (now < start) {
+            toast.error('Ujian belum dimulai!');
+            navigate('/app/exam');
+            return;
+          }
+
+          if (now > end + 300000) { // 5 min grace period
+            toast.error('Sesi Ujian sudah berakhir!');
+            navigate('/app/exam');
+            return;
+          }
+        }
+
+        setExam(examData);
+
+        // 3. Fetch Questions
+        const { data: eqData, error: eqError } = await supabase
+          .from('exam_questions')
+          .select('question_id')
+          .eq('exam_id', examId);
+
+        if (eqError || !isMounted) throw eqError;
+        
+        const questionIds = (eqData || []).map(d => d.question_id);
+        const { data: qData, error: qError } = await supabase
+          .from('questions')
+          .select('*')
+          .in('id', questionIds);
+
+        if (qError || !isMounted) throw qError;
+        setQuestions(qData || []);
+
+        setSessionId(activeSession.id);
+        setIsBlocked(activeSession.status === 'blocked');
+        initTimer(activeSession, examData);
+
+        // 4. Real-time listener
+        // Unique channel name each time to avoid collisions if previous cleanup was slow
+        const channelName = `session_${activeSession.id}_${Date.now()}`;
+        channel = supabase.channel(channelName);
+        
+        channel
           .on(
             'postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'exam_sessions', filter: `id=eq.${sessionData.id}` },
-            (payload) => {
+            { 
+              event: 'UPDATE', 
+              schema: 'public', 
+              table: 'exam_sessions', 
+              filter: `id=eq.${activeSession.id}` 
+            },
+            (payload: any) => {
+              if (!isMounted) return;
               const updatedStatus = payload.new.status;
               setIsBlocked(updatedStatus === 'blocked');
-              if (updatedStatus === 'submitted') navigate('/app/history');
+              if (updatedStatus === 'submitted') {
+                navigate('/app/history');
+              }
             }
           )
           .subscribe();
 
-        return () => {
-          supabase.removeChannel(channel);
-        };
-
       } catch (err) {
-        console.error('Initialization error:', err);
+        if (isMounted) {
+          console.error('Initialization error:', err);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     initExam();
+
+    return () => {
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, [examId, navigate]);
 
   // Anti-cheat violation reporter
@@ -208,8 +276,10 @@ export default function ExamRoom() {
         .from('exam_sessions')
         .update({ 
           status: 'submitted', 
-          submitted_at: new Date().toISOString(),
-          score: finalScore
+          completed_at: new Date().toISOString(),
+          score: finalScore,
+          correct_answers: correctCount,
+          total_questions: questions.length
         })
         .eq('id', sessionId);
 
@@ -237,10 +307,10 @@ export default function ExamRoom() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="font-bold text-slate-500 animate-pulse">Menyiapkan Ruang Ujian...</p>
+          <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="font-bold opacity-60 animate-pulse text-[var(--primary)]">Menyiapkan Ruang Ujian...</p>
         </div>
       </div>
     );
@@ -260,7 +330,7 @@ export default function ExamRoom() {
           <div className="space-y-4">
             <h1 className="text-4xl font-black tracking-tight uppercase">DIBLOKIR</h1>
             <p className="text-slate-400 text-lg leading-relaxed">
-              Anda terdeteksi melakukan pelanggaran (keluar dari tab ujian). Guru telah memblokir akses Anda sementara.
+              Anda terdeteksi melakukan pelanggaran (keluar dari tab ujian). Akses Anda telah diblokir sementara sesuai protokol keamanan ujian.
             </p>
           </div>
           
@@ -300,25 +370,25 @@ export default function ExamRoom() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none overflow-hidden">
+    <div className="min-h-screen bg-[var(--bg-main)] flex flex-col font-sans select-none overflow-hidden text-[var(--primary)]">
       {/* Top Bar */}
-      <header className="h-16 bg-white border-b border-slate-200 shadow-sm px-6 flex items-center justify-between sticky top-0 z-40">
+      <header className="h-16 bg-[var(--bg-card)] border-b border-[var(--border-premium)] shadow-sm px-6 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
+          <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
             <Shield className="text-white w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-bold text-slate-800 text-sm sm:text-lg truncate max-w-[200px]">
+            <h1 className="font-bold text-sm sm:text-lg truncate max-w-[200px]">
               {exam?.title}
             </h1>
-            <p className="text-[10px] text-blue-600 uppercase tracking-widest font-black">Secure CBT Environment</p>
+            <p className="text-[10px] text-accent uppercase tracking-widest font-black">Lingkungan Ujian Aman</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-6">
           <div className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all",
-            timeLeft < 300 ? "bg-red-50 text-red-600 border-red-100 animate-pulse" : "bg-blue-50 text-blue-700 border-blue-100"
+            timeLeft < 300 ? "bg-red-500/10 text-red-500 border-red-500/20 animate-pulse" : "bg-accent/10 text-accent border-accent/20"
           )}>
             <Clock className="w-5 h-5" />
             <span className="text-xl font-mono font-black">{formatTime(timeLeft)}</span>
@@ -334,23 +404,23 @@ export default function ExamRoom() {
               key={currentQuestionIndex}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[32px] border border-slate-200 shadow-sm p-8 sm:p-10 space-y-8"
+              className="bg-[var(--bg-card)] rounded-[32px] border border-[var(--border-premium)] shadow-sm p-8 sm:p-10 space-y-8"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-xl shadow-slate-200">
+                  <span className="w-12 h-12 bg-accent text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-xl shadow-accent/20">
                     {currentQuestionIndex + 1}
                   </span>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Pertanyaan</p>
-                    <p className="text-sm font-bold text-slate-800">{questions.length} Total Soal</p>
+                    <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">Pertanyaan</p>
+                    <p className="text-sm font-bold opacity-60">{questions.length} Total Soal</p>
                   </div>
                 </div>
               </div>
 
-              <div className="prose prose-slate max-w-none">
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-relaxed">
-                  {currentQuestion.content}
+              <div className="prose prose-premium max-w-none">
+                <h2 className="text-xl sm:text-2xl font-bold leading-relaxed text-[var(--primary)]">
+                  {currentQuestion.question_text}
                 </h2>
               </div>
 
@@ -365,19 +435,19 @@ export default function ExamRoom() {
                       className={cn(
                         "group w-full text-left p-5 rounded-2xl border-2 transition-all flex items-center gap-4",
                         isSelected 
-                          ? "bg-blue-50 border-blue-600 ring-4 ring-blue-50" 
-                          : "bg-slate-50/50 border-transparent hover:border-slate-200 hover:bg-white"
+                          ? "bg-accent/10 border-accent ring-4 ring-accent/5" 
+                          : "bg-black/5 dark:bg-white/5 border-transparent hover:border-[var(--border-premium)] hover:bg-[var(--bg-card)]"
                       )}
                     >
                       <span className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shrink-0 transition-all",
-                        isSelected ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-slate-400 border border-slate-200"
+                        isSelected ? "bg-accent text-white shadow-lg shadow-accent/20" : "bg-[var(--bg-main)] text-[var(--primary)] opacity-40 border border-[var(--border-premium)]"
                       )}>
                         {label}
                       </span>
                       <span className={cn(
                         "font-bold text-lg",
-                        isSelected ? "text-blue-900" : "text-slate-600"
+                        isSelected ? "text-accent" : "opacity-70"
                       )}>{option}</span>
                     </button>
                   );
@@ -391,7 +461,7 @@ export default function ExamRoom() {
             <button
               disabled={currentQuestionIndex === 0}
               onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-              className="px-6 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition-all flex items-center gap-2"
+              className="px-6 py-4 bg-[var(--bg-card)] border border-[var(--border-premium)] rounded-2xl font-bold opacity-60 hover:opacity-100 disabled:opacity-20 transition-all flex items-center gap-2"
             >
               <ChevronLeft className="w-5 h-5" /> Sebelumnya
             </button>
@@ -399,14 +469,14 @@ export default function ExamRoom() {
             {currentQuestionIndex === questions.length - 1 ? (
               <button
                 onClick={() => setShowConfirmSubmit(true)}
-                className="px-10 py-4 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 transition-all shadow-xl shadow-green-100 flex items-center gap-2"
+                className="px-10 py-4 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 transition-all shadow-xl shadow-green-500/20 flex items-center gap-2"
               >
                 Selesaikan Ujian <Send className="w-5 h-5" />
               </button>
             ) : (
               <button
                 onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center gap-2"
+                className="px-8 py-4 bg-accent text-white rounded-2xl font-black hover:bg-accent/90 transition-all shadow-xl shadow-accent/20 flex items-center gap-2"
               >
                 Berikutnya <ChevronRight className="w-5 h-5" />
               </button>
@@ -416,10 +486,10 @@ export default function ExamRoom() {
 
         {/* Right Nav */}
         <div className="w-full lg:w-80 shrink-0 space-y-6">
-          <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm p-6">
-            <h3 className="font-black text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-              <CheckSquare className="w-4 h-4 text-blue-600" />
-              Progress Map
+          <div className="bg-[var(--bg-card)] rounded-[32px] border border-[var(--border-premium)] shadow-sm p-6">
+            <h3 className="font-black text-[10px] opacity-40 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+              <CheckSquare className="w-4 h-4 text-accent" />
+              Peta Progres
             </h3>
             <div className="grid grid-cols-5 gap-2">
               {questions.map((q, idx) => {
@@ -432,10 +502,10 @@ export default function ExamRoom() {
                     className={cn(
                       "aspect-square rounded-xl font-black text-xs transition-all flex items-center justify-center border-2",
                       isCurrent 
-                        ? "bg-slate-900 border-slate-900 text-white scale-110 shadow-xl" 
+                        ? "bg-accent border-accent text-white scale-110 shadow-xl" 
                         : isAnswered 
-                          ? "bg-blue-100 border-blue-200 text-blue-700" 
-                          : "bg-slate-50 border-transparent text-slate-400 hover:bg-white hover:border-slate-200"
+                          ? "bg-accent/10 border-accent/20 text-accent font-bold" 
+                          : "bg-black/5 dark:bg-white/5 border-transparent opacity-40 hover:opacity-100 hover:bg-[var(--bg-card)] hover:border-[var(--border-premium)]"
                     )}
                   >
                     {idx + 1}
@@ -444,14 +514,14 @@ export default function ExamRoom() {
               })}
             </div>
             
-            <div className="mt-8 pt-6 border-t border-slate-50 space-y-3">
+            <div className="mt-8 pt-6 border-t border-[var(--border-premium)] space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Terjawab</span>
-                <span className="text-sm font-black text-blue-600">{Object.keys(answers).length} / {questions.length}</span>
+                <span className="text-[10px] font-black opacity-40 uppercase tracking-widest">Terjawab</span>
+                <span className="text-sm font-black text-accent">{Object.keys(answers).length} / {questions.length}</span>
               </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-blue-600 transition-all duration-500" 
+                  className="h-full bg-accent transition-all duration-500" 
                   style={{ width: `${(Object.keys(answers).length / (questions.length || 1)) * 100}%` }}
                 />
               </div>
@@ -486,7 +556,7 @@ export default function ExamRoom() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="flex-1 py-5 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 transition-all shadow-2xl shadow-green-200"
+                  className="flex-1 py-5 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 transition-all shadow-2xl shadow-green-100"
                 >
                   Ya, Kirim Ujian
                 </button>

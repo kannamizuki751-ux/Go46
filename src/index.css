@@ -1,1 +1,61 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --primary: #0f172a;
+  --primary-foreground: #f8fafc;
+  --accent: #3b82f6;
+  --surface: #ffffff;
+  --border-premium: #e2e8f0;
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --muted: #64748b;
+}
+
+.dark {
+  --primary: #f8fafc;
+  --primary-foreground: #0f172a;
+  --accent: #60a5fa;
+  --surface: #0f172a;
+  --border-premium: #1e293b;
+  --bg-main: #020617;
+  --bg-card: #0f172a;
+  --muted: #94a3b8;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Map variables to theme tokens for use in utilities */
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --color-background: var(--bg-main);
+  --color-card: var(--bg-card);
+  --color-border-premium: var(--border-premium);
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--primary);
+  @apply font-sans antialiased;
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  @apply font-display tracking-tight text-[var(--primary)];
+}
+
+.glass {
+  background-color: color-mix(in srgb, var(--bg-main) 70%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-premium);
+}
+
+.glass-premium {
+  background-color: color-mix(in srgb, var(--bg-card) 50%, transparent);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-premium);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}

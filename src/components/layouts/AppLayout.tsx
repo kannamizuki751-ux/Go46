@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -9,28 +9,36 @@ import {
   History, 
   CheckSquare, 
   BarChart3, 
-  Settings, 
   LogOut, 
   Bell, 
   User,
   Menu,
   X,
-  School
+  School,
+  Sparkles,
+  AlertCircle,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { getSupabase } from '../../lib/supabase';
+import { ThemeToggle } from '../ThemeToggle';
 
-// Mock user for UI development - in production, get from context/supabase
-const MOCK_USER = {
-  name: 'Pak Budi',
-  role: 'guru', // 'admin', 'guru', 'siswa'
-  email: 'budi@school.edu'
-};
+interface Notification {
+  id: string;
+  event_type: string;
+  details: string;
+  created_at: string;
+  is_read?: boolean;
+}
 
 export default function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [user, setUser] = useState<{name: string, role: string, email: string} | null>(null);
+  const [user, setUser] = useState<{id: string, name: string, role: string, email: string, details?: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const supabase = getSupabase();
@@ -40,48 +48,123 @@ export default function AppLayout() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
       if (!authUser) {
-        navigate('/login');
+        navigate('/login', { replace: true });
         return;
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
+      const isHardcodedAdmin = authUser.email === 'go46@gmail.com';
 
-      if (profile) {
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+        if (profileError) {
+           console.warn("Profile fetch error (potential RLS recursion):", profileError);
+           if (profileError.code === '42P17') throw profileError;
+        }
+
+        if (profile) {
+          setUser({
+            id: authUser.id,
+            name: profile.full_name || authUser.email?.split('@')[0] || 'Pengguna',
+            role: isHardcodedAdmin ? 'admin' : (profile.role || 'siswa'),
+            email: authUser.email || '',
+            details: profile.role === 'siswa' ? `${profile.class || ''} ${profile.major || ''} ${profile.class_index || ''}`.trim() : undefined
+          });
+        } else {
+          // AUTO-PROVISIONING
+          const defaultRole = isHardcodedAdmin ? 'admin' : ((authUser.user_metadata?.role as string) || 'siswa');
+          const defaultName = isHardcodedAdmin ? 'Kaizuke' : (authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User');
+          
+          setUser({
+            id: authUser.id,
+            name: defaultName,
+            role: defaultRole,
+            email: authUser.email || ''
+          });
+        }
+      } catch (err: any) {
+        console.error("Session profile error:", err);
         setUser({
-          name: profile.full_name || 'User',
-          role: profile.role,
+          id: authUser.id,
+          name: isHardcodedAdmin ? 'Kaizuke' : (authUser.email?.split('@')[0] || 'User'),
+          role: isHardcodedAdmin ? 'admin' : 'siswa',
           email: authUser.email || ''
         });
-      } else {
-        // Fallback jika trigger gagal atau profile belum terbuat
-        setUser({
-          name: authUser.email?.split('@')[0] || 'User',
-          role: 'siswa',
-          email: authUser.email || ''
-        });
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     fetchUser();
   }, [navigate]);
+
+  // Real-time Notifications for Teachers/Admins
+  useEffect(() => {
+    if (!user || user.role === 'siswa') return;
+
+    const fetchInitialLogs = async () => {
+      const { data } = await supabase
+        .from('exam_logs')
+        .select('*')
+        .in('event_type', ['late_exam_request', 'unblock_request', 'anti_cheat_violation'])
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (data) setNotifications(data);
+    };
+
+    fetchInitialLogs();
+
+    const channel = supabase
+      .channel('header_notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'exam_logs' },
+        (payload) => {
+          const newLog = payload.new as Notification;
+          if (['late_exam_request', 'unblock_request', 'anti_cheat_violation'].includes(newLog.event_type)) {
+            setNotifications(prev => [newLog, ...prev].slice(0, 10));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  // Close notifications on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const unreadCount = notifications.length;
+
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
   };
 
-  if (isLoading) {
+    if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-blue-200 font-bold">Memuat Aplikasi...</p>
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--primary)] flex flex-col items-center justify-center transition-colors">
+        <div className="relative">
+          <div className="w-24 h-24 border-[6px] border-accent/20 border-t-accent rounded-full animate-spin"></div>
+          <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-accent animate-pulse" />
         </div>
+        <p className="mt-8 font-display font-bold text-xl tracking-tighter animate-pulse text-[var(--primary)]">Menyiapkan Lingkungan...</p>
       </div>
     );
   }
@@ -90,37 +173,68 @@ export default function AppLayout() {
 
   const navItems = {
     admin: [
-      { path: '/app', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/app/users', label: 'Manajemen Pengguna', icon: Users },
-      { path: '/app/classes', label: 'Data Kelas & Mapel', icon: School },
-      { path: '/app/results', label: 'Rekap Hasil Ujian', icon: BarChart3 },
+      { path: '/app', label: 'Ringkasan', icon: LayoutDashboard },
+      { path: '/app/users', label: 'Registri Intelijen', icon: Users },
+      { path: '/app/results', label: 'Analitik Global', icon: BarChart3 },
     ],
     guru: [
-      { path: '/app', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/app', label: 'Konsol', icon: LayoutDashboard },
       { path: '/app/question-bank', label: 'Bank Soal', icon: BookOpen },
       { path: '/app/schedule', label: 'Jadwal Ujian', icon: Calendar },
-      { path: '/app/approval', label: 'Persetujuan Ujian', icon: CheckSquare },
+      { path: '/app/approval', label: 'Kontrol Akses', icon: CheckSquare },
       { path: '/app/results', label: 'Hasil Ujian', icon: BarChart3 },
     ],
     siswa: [
-      { path: '/app', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/app/exams', label: 'Daftar Ujian', icon: Calendar },
+      { path: '/app', label: 'Ruang Kerja', icon: LayoutDashboard },
+      { path: '/app/exams', label: 'Ujian Aktif', icon: Calendar },
       { path: '/app/history', label: 'Riwayat Ujian', icon: History },
     ]
   };
 
-  const currentNavItems = navItems[user.role as keyof typeof navItems] || [];
+  const roleConfigs = {
+    admin: {
+      color: 'accent',
+      accentClass: 'bg-accent',
+      textClass: 'text-accent',
+      glowClass: 'bg-accent/15',
+      shadowClass: 'shadow-accent/20',
+      borderClass: 'border-accent/20',
+      gradient: 'from-accent to-indigo-600'
+    },
+    guru: {
+      color: 'indigo',
+      accentClass: 'bg-indigo-600',
+      textClass: 'text-indigo-600',
+      glowClass: 'bg-indigo-600/15',
+      shadowClass: 'shadow-indigo-600/20',
+      borderClass: 'border-indigo-600/20',
+      gradient: 'from-indigo-600 to-accent'
+    },
+    siswa: {
+      color: 'sky',
+      accentClass: 'bg-sky-500',
+      textClass: 'text-sky-500',
+      glowClass: 'bg-sky-500/15',
+      shadowClass: 'shadow-sky-500/20',
+      borderClass: 'border-sky-500/20',
+      gradient: 'from-sky-500 to-indigo-500'
+    }
+  };
+
+  const currentRole = (user.role as keyof typeof roleConfigs) || 'siswa';
+  const config = roleConfigs[currentRole as keyof typeof roleConfigs] || roleConfigs.siswa;
+  const currentNavItems = navItems[currentRole as keyof typeof navItems] || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen flex text-[var(--primary)] transition-colors duration-500">
       {/* Sidebar Overlay for Mobile */}
       <AnimatePresence>
         {!isSidebarOpen && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black z-40 lg:hidden"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
             onClick={() => setIsSidebarOpen(true)}
           />
         )}
@@ -129,26 +243,50 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "bg-slate-900 text-slate-300 w-72 fixed inset-y-0 z-50 transition-transform duration-300 transform lg:translate-x-0 lg:static",
+          "bg-[var(--bg-card)] w-72 fixed inset-y-0 z-50 transition-all duration-500 transform lg:translate-x-0 lg:static border-r border-[var(--border-premium)]",
           !isSidebarOpen && "-translate-x-full"
         )}
       >
         <div className="h-full flex flex-col">
           {/* Logo */}
-          <div className="p-6 h-16 flex items-center justify-between">
+          <div className="p-8 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-                <span className="text-white font-bold">U</span>
+              <div className="w-12 h-12 flex items-center justify-center">
+                <img src="/logo.png" alt="Logo SMKN 46 Jakarta" className="w-full h-full object-contain" />
               </div>
-              <span className="font-bold text-xl text-white tracking-tight">EduTest46</span>
+              <span className="font-display font-bold text-xl tracking-tighter text-[var(--primary)]">SMKN 46 JAKARTA</span>
             </div>
-            <button className="lg:hidden text-slate-400" onClick={() => setIsSidebarOpen(false)}>
+            <button className="lg:hidden p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors text-[var(--primary)]" onClick={() => setIsSidebarOpen(false)}>
               <X className="w-6 h-6" />
             </button>
           </div>
 
+          {/* User Profile Summary */}
+          <div className="px-8 pb-8 pt-2">
+            <div className={cn("p-4 rounded-3xl bg-[var(--bg-main)] border shadow-sm transition-all", config.borderClass)}>
+              <div className="flex items-center gap-3">
+                <div className={cn("w-12 h-12 rounded-2xl bg-gradient-to-br shadow-lg flex items-center justify-center transition-transform hover:scale-105", config.gradient)}>
+                  <User className="w-6 h-6 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-display font-bold text-sm truncate leading-tight text-[var(--primary)]">{user.name}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={cn("text-[8px] uppercase tracking-[0.2em] font-black", config.textClass)}>{user.role}</span>
+                    {user.details && (
+                      <>
+                        <span className="w-1 h-1 rounded-full bg-border-premium" />
+                        <span className="text-[8px] font-black opacity-40 uppercase tracking-widest">{user.details}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1">
+          <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto">
+            <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40">Konsol Sistem</p>
             {currentNavItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
@@ -156,30 +294,29 @@ export default function AppLayout() {
                   key={item.path}
                   to={item.path}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                    "flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all group relative overflow-hidden",
                     isActive 
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40" 
-                      : "hover:bg-slate-800 hover:text-white"
+                      ? cn(config.accentClass, "text-white shadow-xl shadow-opacity-30", config.shadowClass) 
+                      : "hover:bg-black/5 dark:hover:bg-white/5 opacity-70 hover:opacity-100 text-[var(--primary)]"
                   )}
                 >
-                  <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400")} />
-                  <span className="font-medium">{item.label}</span>
+                  <item.icon className={cn("w-5 h-5 relative z-10 transition-transform group-hover:scale-110", isActive ? "text-white" : cn(config.textClass, "opacity-60 group-hover:opacity-100"))} />
+                  <span className="font-bold tracking-tight relative z-10">{item.label}</span>
+                  {isActive && <motion.div layoutId="nav-active" className={cn("absolute inset-0 z-0", config.accentClass)} />}
                 </Link>
               );
             })}
           </nav>
 
-          {/* User Profile Summary */}
-          <div className="p-6 mt-auto border-t border-slate-800 bg-slate-900/50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-                <User className="w-5 h-5 text-slate-400" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-white leading-none">{user.name}</p>
-                <p className="text-xs text-slate-500 mt-1 capitalize">{user.role}</p>
-              </div>
-            </div>
+          {/* Logout Section */}
+          <div className="p-6">
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-red-500 dark:text-red-400 font-bold hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Akhiri Sesi</span>
+            </button>
           </div>
         </div>
       </aside>
@@ -187,38 +324,122 @@ export default function AppLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30">
-          <div className="flex items-center gap-4">
+        <header className="h-20 md:h-24 glass border-b border-[var(--border-premium)] flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 transition-all">
+          <div className="flex items-center gap-3 md:gap-6">
             <button 
-              className="lg:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600"
+              className="lg:hidden p-2.5 md:p-3 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors text-[var(--primary)]"
               onClick={() => setIsSidebarOpen(true)}
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5 md:w-6 md:h-6" />
             </button>
-            <h1 className="text-lg font-bold text-slate-800 hidden sm:block">
-              {currentNavItems.find(i => i.path === location.pathname)?.label || 'Aplikasi Ujian'}
-            </h1>
+            <div className="hidden sm:block">
+               <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-50 mb-0.5 md:mb-1 text-[var(--primary)]">Alur Navigasi</p>
+               <h1 className="text-lg md:text-xl font-display font-bold tracking-tight text-[var(--primary)]">
+                {currentNavItems.find(i => i.path === location.pathname)?.label || 'Node Sistem'}
+               </h1>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <button className="p-2 hover:bg-slate-100 rounded-full text-slate-500 relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-            </button>
-            <div className="h-6 w-[1px] bg-slate-200 mx-2" />
-            <button 
-              onClick={handleLogout}
-              className="px-4 py-2 text-red-600 font-semibold text-sm hover:bg-red-50 rounded-xl transition-all flex items-center gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+          <div className="flex items-center gap-3 sm:gap-6">
+            <ThemeToggle />
+            <div className="h-6 md:h-8 w-px bg-[var(--border-premium)] mx-1 md:mx-2" />
+            
+            <div className="relative" ref={bellRef}>
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2.5 md:p-3 bg-[var(--bg-card)] shadow-md border border-[var(--border-premium)] rounded-xl transition-all hover:scale-105 active:scale-95 relative group"
+              >
+                <Bell className="w-4 h-4 md:w-5 md:h-5 opacity-60 group-hover:opacity-100 transition-opacity text-[var(--primary)]" />
+                {notifications.length > 0 && (
+                  <span className={cn("absolute top-2.5 right-2.5 md:top-3 md:right-3 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full border-[2px] md:border-[3px] border-[var(--bg-card)] animate-pulse", config.accentClass)} />
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-4 w-80 sm:w-96 bg-[var(--bg-card)] border border-[var(--border-premium)] rounded-3xl shadow-2xl overflow-hidden z-50 backdrop-blur-xl"
+                  >
+                    <div className="p-6 border-b border-[var(--border-premium)] flex items-center justify-between">
+                      <h3 className="font-display font-black text-xs uppercase tracking-[0.2em] opacity-40">Notifikasi Sistem</h3>
+                      <button onClick={() => setShowNotifications(false)} className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg">
+                        <X className="w-4 h-4 opacity-40" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-12 text-center">
+                          <Bell className="w-12 h-12 opacity-5 mx-auto mb-4" />
+                          <p className="text-[10px] font-black uppercase tracking-widest opacity-30">Tidak ada notifikasi baru</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-[var(--border-premium)]">
+                          {notifications.map((notif) => (
+                            <div key={notif.id} className="p-5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
+                              <div className="flex gap-4">
+                                <div className={cn(
+                                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg",
+                                  notif.event_type === 'late_exam_request' ? "bg-amber-500 shadow-amber-500/10" :
+                                  notif.event_type === 'unblock_request' ? "bg-rose-500 shadow-rose-500/10" :
+                                  "bg-blue-500 shadow-blue-500/10"
+                                )}>
+                                  {notif.event_type === 'late_exam_request' ? <Clock className="w-5 h-5 text-white" /> :
+                                   notif.event_type === 'unblock_request' ? <AlertCircle className="w-5 h-5 text-white" /> :
+                                   <Sparkles className="w-5 h-5 text-white" />}
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="text-[10px] font-black uppercase tracking-widest opacity-40">
+                                    {notif.event_type.replace(/_/g, ' ')}
+                                  </p>
+                                  <p className="text-xs font-bold leading-relaxed text-[var(--primary)]">
+                                    {notif.details}
+                                  </p>
+                                  <div className="flex items-center gap-2 pt-2">
+                                     <span className="text-[9px] font-mono opacity-30 uppercase">
+                                       {new Date(notif.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                     </span>
+                                     <Link 
+                                       to="/app/approval" 
+                                       onClick={() => setShowNotifications(false)}
+                                       className="text-[9px] font-black text-sky-600 hover:underline uppercase flex items-center gap-1"
+                                     >
+                                       Tinjau <ExternalLink className="w-2.5 h-2.5" />
+                                     </Link>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-black/5 dark:bg-white/5 text-center">
+                       <Link 
+                         to="/app/approval" 
+                         onClick={() => setShowNotifications(false)}
+                         className="text-[10px] font-black uppercase tracking-widest text-[var(--primary)] opacity-40 hover:opacity-100 transition-opacity"
+                       >
+                         Lihat Semua Log Aktivitas
+                       </Link>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-6 md:p-8">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 relative">
+          {/* Subtle Background Glow */}
+          <div className={cn("absolute top-0 right-0 w-[400px] h-[400px] rounded-full blur-[100px] pointer-events-none transition-all duration-1000", config.glowClass)} />
+          
+          <div className="max-w-7xl mx-auto relative z-10">
             <Outlet />
           </div>
         </main>
