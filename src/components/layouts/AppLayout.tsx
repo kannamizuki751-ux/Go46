@@ -240,24 +240,40 @@ export default function AppLayout() {
         )}
       </AnimatePresence>
 
+      {/* Mobile Header Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-primary/20 backdrop-blur-sm z-[45] lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <aside
         className={cn(
-          "bg-[var(--bg-card)] w-72 fixed inset-y-0 z-50 transition-all duration-500 transform lg:translate-x-0 lg:static border-r border-[var(--border-premium)]",
-          !isSidebarOpen && "-translate-x-full"
+          "bg-[var(--bg-card)] w-80 lg:w-72 fixed lg:static inset-y-0 z-50 transition-all duration-500 ease-in-out border-r border-[var(--border-premium)] flex flex-col group/sidebar shadow-2xl lg:shadow-none",
+          !isSidebarOpen && "-translate-x-full lg:translate-x-0"
         )}
       >
         <div className="h-full flex flex-col">
           {/* Logo */}
           <div className="p-8 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 flex items-center justify-center">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 flex items-center justify-center p-2 bg-white rounded-2xl shadow-xl shadow-black/5">
                 <img src="/logo.png" alt="Logo SMKN 46 Jakarta" className="w-full h-full object-contain" />
               </div>
-              <span className="font-display font-bold text-xl tracking-tighter text-[var(--primary)]">SMKN 46 JAKARTA</span>
+              <div className="overflow-hidden">
+                <h1 className="font-display font-black text-xl tracking-tighter text-[var(--primary)] leading-tight">Go46</h1>
+                <p className="text-[10px] font-black text-accent uppercase tracking-[0.2em] opacity-80">CBT SMKN 46</p>
+              </div>
             </div>
-            <button className="lg:hidden p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors text-[var(--primary)]" onClick={() => setIsSidebarOpen(false)}>
-              <X className="w-6 h-6" />
+            <button className="lg:hidden p-3 bg-background hover:bg-black/5 dark:hover:bg-white/10 rounded-2xl transition-all text-[var(--primary)] border border-border-premium shadow-sm active:scale-95" onClick={() => setIsSidebarOpen(false)}>
+              <X className="w-6 h-6 text-accent" />
             </button>
           </div>
 
@@ -324,18 +340,18 @@ export default function AppLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-20 md:h-24 glass border-b border-[var(--border-premium)] flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 transition-all">
-          <div className="flex items-center gap-3 md:gap-6">
+        <header className="h-24 md:h-28 glass border-b border-[var(--border-premium)] flex items-center justify-between px-6 md:px-12 sticky top-0 z-40 transition-all">
+          <div className="flex items-center gap-4 md:gap-8 grow">
             <button 
-              className="lg:hidden p-2.5 md:p-3 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors text-[var(--primary)]"
+              className="lg:hidden p-3.5 bg-background shadow-sm border border-border-premium hover:bg-black/5 dark:hover:bg-white/10 rounded-2xl transition-all text-[var(--primary)] active:scale-95"
               onClick={() => setIsSidebarOpen(true)}
             >
-              <Menu className="w-5 h-5 md:w-6 md:h-6" />
+              <Menu className="w-6 h-6" />
             </button>
-            <div className="hidden sm:block">
-               <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-50 mb-0.5 md:mb-1 text-[var(--primary)]">Alur Navigasi</p>
-               <h1 className="text-lg md:text-xl font-display font-bold tracking-tight text-[var(--primary)]">
-                {currentNavItems.find(i => i.path === location.pathname)?.label || 'Node Sistem'}
+            <div className="overflow-hidden">
+               <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-1 text-[var(--primary)] hidden sm:block">Alur Navigasi</p>
+               <h1 className="text-xl md:text-2xl font-display font-black tracking-tighter text-[var(--primary)] truncate">
+                {currentNavItems.find(i => i.path === location.pathname)?.label || 'Beranda Sistem'}
                </h1>
             </div>
           </div>

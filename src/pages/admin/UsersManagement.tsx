@@ -392,36 +392,37 @@ export default function UsersManagement() {
 
   return (
     <div className="space-y-6 text-primary">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black text-primary tracking-tight">Manajemen Pengguna</h2>
-          <p className="text-muted font-medium text-sm">Atur hak akses dan identitas di sistem CBT.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="space-y-2">
+          <h2 className="text-3xl sm:text-4xl font-black text-primary tracking-tighter">Manajemen Pengguna</h2>
+          <p className="text-muted font-medium text-sm sm:text-base">Atur hak akses dan identitas di sistem CBT.</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-xl shadow-accent/20"
+          className="inline-flex items-center justify-center gap-3 bg-accent hover:bg-accent/90 text-white px-8 py-4 rounded-3xl font-black transition-all shadow-2xl shadow-accent/20 active:scale-95"
         >
           <UserPlus className="w-5 h-5" />
-          Tambah Pengguna
+          <span>Tambah Pengguna</span>
         </button>
       </div>
 
-      <div className="bg-card rounded-[32px] border border-border-premium shadow-sm overflow-hidden text-primary">
-        <div className="p-6 border-b border-border-premium bg-background/50 flex items-center gap-4">
-          <Search className="w-5 h-5 text-muted" />
+      <div className="bg-card rounded-[40px] border border-border-premium shadow-sm overflow-hidden text-primary">
+        <div className="p-6 border-b border-border-premium bg-background/30 flex items-center gap-4">
+          <Search className="w-5 h-5 text-muted opacity-40" />
           <input
             type="text"
-            placeholder="Cari nama siswa, guru atau ID..."
+            placeholder="Cari nama, role, atau ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 bg-transparent border-none outline-none text-primary placeholder:text-muted/40 font-bold"
+            className="flex-1 bg-transparent border-none outline-none text-primary placeholder:text-muted/40 font-bold text-sm sm:text-base"
           />
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop View */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-background/80 border-b border-border-premium">
+              <tr className="bg-background/50 border-b border-border-premium">
                 <th className="px-8 py-5 text-[10px] font-black text-muted uppercase tracking-widest">Profil Pengguna</th>
                 <th className="px-8 py-5 text-[10px] font-black text-muted uppercase tracking-widest">Akses Peran</th>
                 <th className="px-8 py-5 text-[10px] font-black text-muted uppercase tracking-widest">Terdaftar</th>
@@ -446,83 +447,8 @@ export default function UsersManagement() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-8 py-20 text-center">
-                    {isRecursionError ? (
-                      <div className="max-w-md mx-auto space-y-4">
-                        <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto">
-                          <X className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-xl font-black text-red-500">Security Loop Detected</h3>
-                        <p className="text-muted text-xs font-medium">
-                          Supabase RLS recursion error. Your admin policy has a loop.
-                        </p>
-                        <div className="mt-6 p-4 bg-background border border-border-premium rounded-2xl text-left space-y-3">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-accent">LANGKAH PERBAIKAN TOTAL (REBUILD DATABASE):</p>
-                          <p className="text-xs font-medium opacity-80 text-red-400 font-bold">PERINGATAN: SQL ini akan menghapus data ujian lama agar struktur kembali normal.</p>
-                          <pre className="p-3 bg-black/20 rounded-xl text-[10px] font-mono text-primary overflow-x-auto whitespace-pre">
-                            {`-- 1. HAPUS TABEL LAMA (RESET TOTAL)
-DROP TABLE IF EXISTS exam_sessions CASCADE;
-DROP TABLE IF EXISTS exam_questions CASCADE;
-DROP TABLE IF EXISTS exams CASCADE;
-
--- 2. BUAT ULANG TABEL EXAMS
-CREATE TABLE exams (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    subject TEXT,
-    duration_minutes INTEGER NOT NULL,
-    start_time TIMESTAMPTZ NOT NULL,
-    end_time TIMESTAMPTZ,
-    status TEXT DEFAULT 'published',
-    anti_cheat_enabled BOOLEAN DEFAULT true,
-    target_classes TEXT[],
-    target_majors TEXT[],
-    target_indices TEXT[],
-    created_by UUID REFERENCES profiles(id),
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 3. BUAT ULANG TABEL RELASI SOAL
-CREATE TABLE exam_questions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    exam_id UUID REFERENCES exams(id) ON DELETE CASCADE,
-    question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 4. BUAT ULANG TABEL SESI (HASIL UJIAN)
-CREATE TABLE exam_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    siswa_id UUID REFERENCES profiles(id),
-    exam_id UUID REFERENCES exams(id) ON DELETE CASCADE,
-    start_time TIMESTAMPTZ DEFAULT now(),
-    completed_at TIMESTAMPTZ,
-    score FLOAT DEFAULT 0,
-    correct_answers INTEGER DEFAULT 0,
-    total_questions INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'submitted',
-    violations_count INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(siswa_id, exam_id)
-);
-
--- 5. MATIKAN RLS AGAR TIDAK ADA ERROR IZIN
-ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE exams DISABLE ROW LEVEL SECURITY;
-ALTER TABLE exam_questions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE exam_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE questions DISABLE ROW LEVEL SECURITY;
-
--- 6. PENYEGARAN SISTEM
-NOTIFY pgrst, 'reload schema';`}
-                          </pre>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <User className="w-12 h-12 text-muted/20 mx-auto mb-4" />
-                        <p className="text-muted font-bold">Tidak ada data pengguna.</p>
-                      </>
-                    )}
+                    <User className="w-12 h-12 text-muted/20 mx-auto mb-4" />
+                    <p className="text-muted font-bold">Tidak ada data pengguna.</p>
                   </td>
                 </tr>
               ) : filteredUsers.map((user) => (
@@ -572,13 +498,13 @@ NOTIFY pgrst, 'reload schema';`}
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => openEditModal(user)}
-                        className="p-3 bg-card border border-border-premium rounded-2xl text-muted hover:text-blue-500 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 transition-all"
+                        className="p-3 bg-card border border-border-premium rounded-2xl text-muted hover:text-blue-500 hover:border-blue-500/30 hover:shadow-lg hover:shadow-blue-500/10 transition-all active:scale-90"
                       >
                         <UserCog className="w-5 h-5" />
                       </button>
                       <button 
                         onClick={() => initiateDelete(user.id)}
-                        className="p-3 bg-card border border-border-premium rounded-2xl text-muted hover:text-red-500 hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all"
+                        className="p-3 bg-card border border-border-premium rounded-2xl text-muted hover:text-red-500 hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/10 transition-all active:scale-90"
                       >
                         <X className="w-5 h-5" />
                       </button>
@@ -588,6 +514,71 @@ NOTIFY pgrst, 'reload schema';`}
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="lg:hidden divide-y divide-border-premium">
+          {loading ? (
+             <div className="p-12 text-center">
+               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-accent" />
+               <p className="text-[10px] font-black uppercase tracking-widest text-muted">Menyiapkan Data...</p>
+             </div>
+          ) : filteredUsers.length === 0 ? (
+             <div className="p-12 text-center text-muted font-bold">Tidak ada data.</div>
+          ) : (
+            filteredUsers.map((user) => (
+              <div key={user.id} className="p-6 space-y-4 bg-background/10">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-background rounded-2xl flex items-center justify-center text-muted border border-border-premium">
+                      <User className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-black text-primary leading-tight">
+                        {user.full_name || 'Tanpa Nama'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg border font-black text-[8px] tracking-wider uppercase",
+                          user.role === 'admin' ? "bg-purple-500/10 border-purple-500/20 text-purple-500" :
+                          user.role === 'guru' ? "bg-blue-500/10 border-blue-500/20 text-blue-500" :
+                          "bg-emerald-500/10 border-emerald-500/10 text-emerald-500"
+                        )}>
+                          {user.role}
+                        </div>
+                        {user.role === 'siswa' && (
+                          <span className="text-[9px] font-bold text-accent">
+                            {user.class} {user.major}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2 text-[10px] font-black text-muted uppercase tracking-widest">
+                    <Calendar className="w-3.5 h-3.5 opacity-50" />
+                    {new Date(user.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => openEditModal(user)}
+                      className="p-3 bg-card border border-border-premium rounded-2xl text-muted active:scale-90"
+                    >
+                      <UserCog className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => initiateDelete(user.id)}
+                      className="p-3 bg-card border border-border-premium rounded-2xl text-muted active:scale-90"
+                    >
+                      <X className="w-5 h-5 text-red-500" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

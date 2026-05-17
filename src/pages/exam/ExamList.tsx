@@ -209,26 +209,34 @@ export default function ExamList() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-end justify-between text-[var(--primary)]">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight">Daftar Ujian</h1>
-          <p className="opacity-60 mt-1 font-medium">Ujian yang tersedia untuk dikerjakan saat ini.</p>
+    <div className="space-y-6 md:space-y-10 pb-10">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 text-[var(--primary)]">
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">Daftar Ujian</h1>
+          <p className="opacity-60 font-medium text-sm sm:text-base max-w-lg">Selesaikan ujian yang tersedia dengan teliti dan penuh tanggung jawab.</p>
         </div>
-        <div className="text-right">
-          <span className="text-[10px] font-black opacity-40 uppercase tracking-widest block mb-1">Total Tersedia</span>
-          <span className="text-2xl font-black text-sky-600">{exams.length}</span>
+        <div className="flex items-center gap-4 bg-card px-6 py-3 rounded-2xl border border-border-premium shadow-sm w-fit self-end sm:self-auto">
+          <div className="text-right">
+            <span className="text-[9px] font-black opacity-40 uppercase tracking-[0.2em] block">Tersedia</span>
+            <span className="text-2xl font-black text-sky-600 leading-none">{exams.length}</span>
+          </div>
+          <div className="w-px h-8 bg-border-premium" />
+          <BookOpen className="w-6 h-6 text-sky-600 opacity-40" />
         </div>
       </div>
 
       {exams.length === 0 ? (
-        <div className="bg-[var(--bg-card)] rounded-[40px] border-2 border-dashed border-[var(--border-premium)] p-20 text-center">
-          <BookOpen className="w-16 h-16 opacity-10 mx-auto mb-6" />
-          <h2 className="text-xl font-bold opacity-40">Belum ada ujian yang dijadwalkan.</h2>
-          <p className="opacity-30 mt-2">Hubungi guru Anda jika Anda merasa ini adalah kesalahan.</p>
+        <div className="bg-[var(--bg-card)] rounded-[40px] border-2 border-dashed border-[var(--border-premium)] p-12 sm:p-24 text-center space-y-4">
+          <div className="w-20 h-20 bg-background rounded-full flex items-center justify-center mx-auto opacity-10">
+            <BookOpen className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl sm:text-2xl font-black opacity-40 italic">Belum ada ujian yang dijadwalkan.</h2>
+            <p className="opacity-30 text-sm font-medium">Hubungi guru Anda jika Anda merasa ini adalah kesalahan.</p>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {exams.map((exam) => (
             <div key={exam.id}>
               <ExamCard 
@@ -303,19 +311,19 @@ function ExamCard({
         "bg-black/10 dark:bg-white/10"
       )} />
 
-      <div className="p-8 flex-1 flex flex-col">
+      <div className="p-6 sm:p-8 flex-1 flex flex-col">
         <div className="flex items-start justify-between mb-6">
-          <div className="px-4 py-2 bg-sky-500/10 text-sky-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-sky-500/20">
+          <div className="px-4 py-2 bg-sky-500/10 text-sky-600 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-sky-500/20">
             {exam.subject}
           </div>
           <StatusBadge status={exam.status || 'active'} />
         </div>
 
         <div className="space-y-2 mb-6">
-          <h3 className="text-2xl font-black text-[var(--primary)] group-hover:text-sky-600 transition-colors leading-tight tracking-tight">
+          <h3 className="text-xl sm:text-2xl font-black text-[var(--primary)] group-hover:text-sky-600 transition-colors leading-tight tracking-tight">
             {exam.title}
           </h3>
-          <p className="text-sm font-bold opacity-40 border-l-2 border-[var(--border-premium)] pl-4 text-[var(--primary)]">Oleh: {exam.teacher}</p>
+          <p className="text-xs sm:text-sm font-bold opacity-40 border-l-2 border-[var(--border-premium)] pl-4 text-[var(--primary)] truncate">Oleh: {exam.teacher}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-8">

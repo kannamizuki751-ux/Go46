@@ -194,7 +194,8 @@ export default function Results() {
            </button>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop View: Table */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left">
              <thead>
                <tr className="border-b border-slate-100">
@@ -262,6 +263,62 @@ export default function Results() {
                )}
              </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: Cards */}
+        <div className="lg:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="p-12 text-center">
+              <Loader2 className={cn("w-10 h-10 animate-spin mx-auto mb-4", user?.role === 'admin' ? "text-accent" : "text-indigo-600")} />
+              <p className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">Menarik Data Hasil...</p>
+            </div>
+          ) : filteredResults.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 font-bold">
+              Belum ada hasil ujian.
+            </div>
+          ) : (
+            filteredResults.map((r) => (
+              <div key={r.id} className="p-6 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="font-black text-slate-900 leading-tight">{r.siswa?.full_name}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[10px] font-black uppercase tracking-widest", user?.role === 'admin' ? "text-accent" : "text-indigo-600")}>
+                        {r.exam?.title}
+                      </span>
+                      {r.siswa?.class && (
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-slate-200" />
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                            {r.siswa.class} {r.siswa.major} {r.siswa.class_index || ''}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className={cn(
+                    "px-3 py-1.5 rounded-xl font-black text-sm",
+                    r.score >= 75 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                  )}>
+                    {Math.round(r.score)}
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between pt-2">
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ketelitian</p>
+                    <p className="text-sm font-bold text-slate-700">{r.correct_answers} / {r.total_questions} Benar</p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Waktu Seleasai</p>
+                    <p className="text-[10px] font-bold text-slate-600">
+                      {new Date(r.completed_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {new Date(r.completed_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

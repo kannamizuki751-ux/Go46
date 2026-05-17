@@ -229,25 +229,33 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-10 pb-10">
       {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 text-[var(--primary)]">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Selamat {getTimeOfDay()}, {user?.full_name || 'Pengguna'} 👋
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 text-[var(--primary)]">
+        <div className="space-y-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight">
+            Selamat {getTimeOfDay()}<span className="hidden sm:inline">,</span> <br className="sm:hidden" />
+            <span className={cn("text-transparent bg-clip-text bg-gradient-to-r", 
+              user?.role === 'admin' ? "from-accent to-indigo-600" : 
+              user?.role === 'guru' ? "from-indigo-600 to-indigo-500" :
+              "from-sky-500 to-sky-400"
+            )}>
+              {user?.full_name?.split(' ')[0] || 'Pengguna'} 👋
+            </span>
           </h1>
-          <p className="opacity-60 mt-1">
-            {user?.role === 'admin' ? 'Kelola seluruh sistem SMKN 46 Jakarta dari satu tempat.' : 
-             user?.role === 'guru' ? 'Pantau progres ujian dan bank soal Anda.' :
-             'Selesaikan ujian Anda dengan jujur dan teliti.'}
+          <p className="opacity-60 font-medium text-sm sm:text-base max-w-xl">
+            {user?.role === 'admin' ? 'Kelola seluruh sistem SMKN 46 Jakarta dari satu pusat komando.' : 
+             user?.role === 'guru' ? 'Pantau progres ujian dan bank soal Anda secara real-time.' :
+             'Selesaikan ujian Anda dengan jujur, teliti, dan penuh tanggung jawab.'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="px-4 py-2 bg-card border border-border-premium rounded-xl shadow-sm text-sm font-semibold text-primary flex items-center gap-2">
-            <Calendar className={cn("w-4 h-4", roleTheme.text)} />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="px-4 py-3 bg-card border border-border-premium rounded-2xl shadow-sm text-sm font-bold text-primary flex items-center justify-center gap-3">
+            <Calendar className={cn("w-5 h-5", roleTheme.text)} />
             {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
-          <div className={cn("px-4 py-2 border rounded-xl shadow-lg text-sm font-semibold text-white", roleTheme.bg, roleTheme.shadow, "border-transparent")}>
+          <div className={cn("px-6 py-3 border rounded-2xl shadow-lg text-sm font-black text-white flex items-center justify-center gap-2", roleTheme.bg, roleTheme.shadow, "border-transparent")}>
+            <Clock className="w-5 h-5" />
             WIB {(() => {
               const d = new Date();
               return `${d.getHours().toString().padStart(2, '0')}.${d.getMinutes().toString().padStart(2, '0')}`;
@@ -257,7 +265,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <StatCard 
           icon={<Users className={cn("w-6 h-6", roleTheme.text)} />}
           label="Total Siswa"

@@ -40,6 +40,7 @@ export default function QuestionBank() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'carousel'>('grid');
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
   
   // Form State
   const [currentDraftIndex, setCurrentDraftIndex] = useState(0);
@@ -267,27 +268,39 @@ export default function QuestionBank() {
             <p className="text-slate-400 dark:text-slate-500 font-bold text-[9px] uppercase tracking-[0.3em] ml-0.5">Pusat Manajemen Materi Ujian</p>
           </div>
           
-          <motion.button 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', damping: 20 }}
-            onClick={() => setShowAddModal(true)}
-            className="group relative inline-flex items-center gap-4 bg-slate-900 dark:bg-white text-white dark:text-black px-8 py-4 rounded-2xl font-black transition-all hover:bg-accent dark:hover:bg-accent hover:text-white shadow-lg active:scale-95 overflow-hidden shrink-0 text-sm"
-          >
-            <div className="bg-white/10 dark:bg-black/5 group-hover:bg-white/20 p-2 rounded-lg transition-colors">
-              <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
-            </div>
-            <span className="tracking-tighter uppercase">Buat Materi Baru</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-2" />
-          </motion.button>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className="lg:hidden flex-1 md:flex-none p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl text-slate-400 hover:text-accent transition-all flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest shadow-sm"
+            >
+              <Filter className={cn("w-4 h-4", showFilters && "text-accent")} />
+              {showFilters ? 'Sembunyikan' : 'Tampilkan Filter'}
+            </button>
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', damping: 20 }}
+              onClick={() => setShowAddModal(true)}
+              className="flex-1 md:flex-none group relative inline-flex items-center justify-center gap-4 bg-slate-900 dark:bg-white text-white dark:text-black px-8 py-4 rounded-2xl font-black transition-all hover:bg-accent dark:hover:bg-accent hover:text-white shadow-lg active:scale-95 overflow-hidden shrink-0 text-sm"
+            >
+              <div className="hidden sm:block bg-white/10 dark:bg-black/5 group-hover:bg-white/20 p-2 rounded-lg transition-colors">
+                <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+              </div>
+              <span className="tracking-tighter uppercase whitespace-nowrap">Buat Materi Baru</span>
+              <ArrowRight className="hidden sm:block w-4 h-4 transition-transform group-hover:translate-x-2" />
+            </motion.button>
+          </div>
         </div>
       </section>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
         
         {/* Advanced Filters */}
-        <aside className="xl:col-span-3 space-y-6">
+        <aside className={cn(
+          "lg:col-span-3 space-y-6 lg:block",
+          showFilters ? "block animate-in fade-in slide-in-from-top-4" : "hidden"
+        )}>
           <div className="sticky top-10 space-y-6">
             <div className="bg-white/90 dark:bg-slate-900/40 backdrop-blur-3xl p-6 rounded-3xl border border-slate-200/60 dark:border-white/5 shadow-sm dark:shadow-xl space-y-10 transition-all">
               
@@ -374,7 +387,7 @@ export default function QuestionBank() {
         </aside>
 
         {/* Data Stream */}
-        <main className="xl:col-span-9">
+        <main className="lg:col-span-9">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 space-y-6 bg-white/5 dark:bg-slate-950/30 rounded-[32px] border border-slate-200 dark:border-white/5 backdrop-blur-md">
               <div className="relative w-16 h-16">
