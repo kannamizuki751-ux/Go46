@@ -7,6 +7,9 @@ import { ThemeToggle } from '../components/ThemeToggle';
 
 export default function LandingPage() {
   const [isVideoOpen, setIsVideoOpen] = useState(false);
+  
+  // Ganti ID ini saja untuk mengubah video di seluruh halaman
+  const YOUTUBE_VIDEO_ID = "iC6bDCEWcYo";
 
   return (
     <div className="min-h-screen font-sans bg-[var(--bg-main)] text-[var(--primary)] transition-colors duration-500 overflow-x-hidden">
@@ -31,14 +34,13 @@ export default function LandingPage() {
               >
                 <X className="w-6 h-6" />
               </button>
-              <video 
-                src="/demo.mp4" 
-                controls 
-                autoPlay 
-                className="w-full h-full object-contain"
-              >
-                Maaf, browser Anda tidak mendukung pemutaran video.
-              </video>
+              <iframe 
+                src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1`}
+                title="Panduan Ujian Digital Go46" 
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                allowFullScreen
+              ></iframe>
             </motion.div>
           </motion.div>
         )}
@@ -86,7 +88,10 @@ export default function LandingPage() {
                 <span>Mulai Sekarang</span>
                 <ChevronRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <button className="w-full sm:w-auto px-8 md:px-10 py-4 md:py-5 glass border border-[var(--border-premium)] rounded-2xl font-bold text-base md:text-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all active:scale-95 text-[var(--primary)]">
+              <button 
+                onClick={() => setIsVideoOpen(true)}
+                className="w-full sm:w-auto px-8 md:px-10 py-4 md:py-5 glass border border-[var(--border-premium)] rounded-2xl font-bold text-base md:text-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all active:scale-95 text-[var(--primary)]"
+              >
                 Lihat Panduan
               </button>
             </div>
@@ -104,15 +109,13 @@ export default function LandingPage() {
               onClick={() => setIsVideoOpen(true)}
               className="glass-premium rounded-[1.5rem] md:rounded-[2.2rem] overflow-hidden aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] flex items-center justify-center relative group cursor-pointer"
             >
-               {/* Video Background Preview */}
-               <video 
-                 src="/demo.mp4" 
-                 autoPlay 
-                 muted 
-                 loop 
-                 playsInline 
-                 className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-40 transition-opacity duration-700 pointer-events-none"
+               {/* YouTube Preview Background */}
+               <img 
+                 src={`https://img.youtube.com/vi/${YOUTUBE_VIDEO_ID}/hqdefault.jpg`}
+                 alt="Youtube Preview" 
+                 className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity duration-700 pointer-events-none"
                />
+               <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-main)] via-transparent to-transparent opacity-60" />
                
                <div className="relative z-10 text-center p-6 bg-black/5 dark:bg-white/5 backdrop-blur-[2px] rounded-3xl border border-white/10 p-8 shadow-2xl">
                   <div className="w-16 h-16 md:w-24 md:h-24 bg-accent rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-2xl shadow-accent/50 group-hover:scale-110 transition-transform">
