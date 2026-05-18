@@ -41,7 +41,7 @@ export default function ExamRoom() {
   const [exam, setExam] = useState<ExamData | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, number>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
@@ -252,8 +252,8 @@ export default function ExamRoom() {
 
   const currentQuestion = questions[currentQuestionIndex];
 
-  const handleSelectOption = (option: string) => {
-    setAnswers(prev => ({ ...prev, [currentQuestion.id]: option }));
+  const handleSelectOption = (idx: number) => {
+    setAnswers(prev => ({ ...prev, [currentQuestion.id]: idx }));
   };
 
   const handleSubmit = async () => {
@@ -263,9 +263,8 @@ export default function ExamRoom() {
       // Calculate score
       let correctCount = 0;
       questions.forEach(q => {
-        const userAnswer = answers[q.id];
-        const correctOption = q.options[q.correct_answer];
-        if (userAnswer === correctOption) {
+        const userSelectedIndex = answers[q.id];
+        if (userSelectedIndex !== undefined && userSelectedIndex === q.correct_answer) {
           correctCount++;
         }
       });
@@ -372,26 +371,26 @@ export default function ExamRoom() {
   return (
     <div className="min-h-screen bg-[var(--bg-main)] flex flex-col font-sans select-none overflow-hidden text-[var(--primary)]">
       {/* Top Bar */}
-      <header className="h-16 bg-[var(--bg-card)] border-b border-[var(--border-premium)] shadow-sm px-6 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center shadow-lg shadow-accent/20">
-            <Shield className="text-white w-6 h-6" />
+      <header className="h-20 sm:h-24 bg-[var(--bg-card)] border-b border-[var(--border-premium)] shadow-sm px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 transition-all">
+        <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shadow-accent/20 shrink-0">
+            <Shield className="text-white w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h1 className="font-bold text-sm sm:text-lg truncate max-w-[200px]">
+          <div className="min-w-0">
+            <h1 className="font-display font-black text-xs sm:text-xl truncate leading-tight tracking-tight text-[var(--primary)]">
               {exam?.title}
             </h1>
-            <p className="text-[10px] text-accent uppercase tracking-widest font-black">Lingkungan Ujian Aman</p>
+            <p className="text-[8px] sm:text-[10px] text-accent uppercase tracking-widest font-black opacity-80">Lingkungan Ujian Aman</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-6">
+        <div className="flex items-center gap-2 sm:gap-6 shrink-0">
           <div className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all",
+            "flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl border transition-all",
             timeLeft < 300 ? "bg-red-500/10 text-red-500 border-red-500/20 animate-pulse" : "bg-accent/10 text-accent border-accent/20"
           )}>
-            <Clock className="w-5 h-5" />
-            <span className="text-xl font-mono font-black">{formatTime(timeLeft)}</span>
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-lg sm:text-2xl font-mono font-black tabular-nums">{formatTime(timeLeft)}</span>
           </div>
         </div>
       </header>
@@ -400,98 +399,98 @@ export default function ExamRoom() {
         {/* Left: Question Area */}
         <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-0 lg:pr-2">
           {questions.length > 0 && currentQuestion && (
-            <motion.div
-              key={currentQuestionIndex}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-[var(--bg-card)] rounded-[32px] border border-[var(--border-premium)] shadow-sm p-8 sm:p-10 space-y-8"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-12 h-12 bg-accent text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-xl shadow-accent/20">
-                    {currentQuestionIndex + 1}
-                  </span>
-                  <div>
-                    <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">Pertanyaan</p>
-                    <p className="text-sm font-bold opacity-60">{questions.length} Total Soal</p>
+              <motion.div
+                key={currentQuestionIndex}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-[var(--bg-card)] rounded-[40px] border border-[var(--border-premium)] shadow-sm p-6 sm:p-12 space-y-8"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="w-12 h-12 bg-accent text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-xl shadow-accent/20">
+                      {currentQuestionIndex + 1}
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.2em] mb-0.5">Pertanyaan</p>
+                      <p className="text-xs sm:text-sm font-bold opacity-60">Matematika • {questions.length} Total Soal</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="prose prose-premium max-w-none">
-                <h2 className="text-xl sm:text-2xl font-bold leading-relaxed text-[var(--primary)]">
-                  {currentQuestion.question_text}
-                </h2>
-              </div>
+                <div className="prose prose-premium max-w-none">
+                  <h2 className="text-lg sm:text-2xl font-black leading-snug sm:leading-relaxed text-[var(--primary)] tracking-tight">
+                    {currentQuestion.question_text}
+                  </h2>
+                </div>
 
-              <div className="grid grid-cols-1 gap-3">
-                {currentQuestion.options.map((option, idx) => {
-                  const isSelected = answers[currentQuestion.id] === option;
-                  const label = ['A', 'B', 'C', 'D', 'E'][idx];
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectOption(option)}
-                      className={cn(
-                        "group w-full text-left p-5 rounded-2xl border-2 transition-all flex items-center gap-4",
-                        isSelected 
-                          ? "bg-accent/10 border-accent ring-4 ring-accent/5" 
-                          : "bg-black/5 dark:bg-white/5 border-transparent hover:border-[var(--border-premium)] hover:bg-[var(--bg-card)]"
-                      )}
-                    >
-                      <span className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shrink-0 transition-all",
-                        isSelected ? "bg-accent text-white shadow-lg shadow-accent/20" : "bg-[var(--bg-main)] text-[var(--primary)] opacity-40 border border-[var(--border-premium)]"
-                      )}>
-                        {label}
-                      </span>
-                      <span className={cn(
-                        "font-bold text-lg",
-                        isSelected ? "text-accent" : "opacity-70"
-                      )}>{option}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </motion.div>
+                <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                  {currentQuestion.options.map((option, idx) => {
+                    const isSelected = answers[currentQuestion.id] === idx;
+                    const label = ['A', 'B', 'C', 'D', 'E'][idx];
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleSelectOption(idx)}
+                        className={cn(
+                          "group w-full text-left p-4 sm:p-6 rounded-[24px] border-2 transition-all flex items-center gap-4 sm:gap-6",
+                          isSelected 
+                            ? "bg-accent/10 border-accent ring-8 ring-accent/5" 
+                            : "bg-black/5 dark:bg-white/5 border-transparent hover:border-[var(--border-premium)]"
+                        )}
+                      >
+                        <span className={cn(
+                          "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-lg transition-all shrink-0",
+                          isSelected ? "bg-accent text-white shadow-xl shadow-accent/20" : "bg-[var(--bg-main)] text-[var(--primary)] opacity-40 border border-[var(--border-premium)]"
+                        )}>
+                          {label}
+                        </span>
+                        <span className={cn(
+                          "font-bold text-sm sm:text-lg flex-1",
+                          isSelected ? "text-accent" : "opacity-70"
+                        )}>{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
           )}
 
           {/* Navigation */}
-          <div className="flex items-center justify-between py-4">
+          <div className="flex items-center justify-between py-6 gap-4">
             <button
               disabled={currentQuestionIndex === 0}
               onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-              className="px-6 py-4 bg-[var(--bg-card)] border border-[var(--border-premium)] rounded-2xl font-bold opacity-60 hover:opacity-100 disabled:opacity-20 transition-all flex items-center gap-2"
+              className="px-4 sm:px-8 py-4 bg-[var(--bg-card)] border border-[var(--border-premium)] rounded-2xl sm:rounded-3xl font-black text-xs sm:text-base opacity-60 hover:opacity-100 disabled:opacity-20 transition-all flex items-center gap-2 grow sm:grow-0 justify-center"
             >
-              <ChevronLeft className="w-5 h-5" /> Sebelumnya
+              <ChevronLeft className="w-5 h-5" /><span className="hidden sm:inline">Sebelumnya</span>
             </button>
             
             {currentQuestionIndex === questions.length - 1 ? (
               <button
                 onClick={() => setShowConfirmSubmit(true)}
-                className="px-10 py-4 bg-green-600 text-white rounded-2xl font-black hover:bg-green-700 transition-all shadow-xl shadow-green-500/20 flex items-center gap-2"
+                className="px-6 sm:px-12 py-4 bg-green-600 text-white rounded-2xl sm:rounded-3xl font-black text-xs sm:text-lg hover:bg-green-700 transition-all shadow-xl shadow-green-500/20 flex items-center gap-3 grow sm:grow-0 justify-center active:scale-95"
               >
-                Selesaikan Ujian <Send className="w-5 h-5" />
+                Selesaikan<span className="hidden sm:inline"> Ujian</span> <Send className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             ) : (
               <button
                 onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                className="px-8 py-4 bg-accent text-white rounded-2xl font-black hover:bg-accent/90 transition-all shadow-xl shadow-accent/20 flex items-center gap-2"
+                className="px-6 sm:px-10 py-4 bg-accent text-white rounded-2xl sm:rounded-3xl font-black text-xs sm:text-lg hover:bg-accent/90 transition-all shadow-xl shadow-accent/20 flex items-center gap-3 grow sm:grow-0 justify-center active:scale-95"
               >
-                Berikutnya <ChevronRight className="w-5 h-5" />
+                Berikutnya <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             )}
           </div>
         </div>
 
         {/* Right Nav */}
-        <div className="w-full lg:w-80 shrink-0 space-y-6">
-          <div className="bg-[var(--bg-card)] rounded-[32px] border border-[var(--border-premium)] shadow-sm p-6">
-            <h3 className="font-black text-[10px] opacity-40 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+        <div className="w-full lg:w-96 shrink-0 space-y-6">
+          <div className="bg-[var(--bg-card)] rounded-[40px] border border-[var(--border-premium)] shadow-sm p-6 sm:p-10">
+            <h3 className="font-black text-[10px] opacity-40 uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
               <CheckSquare className="w-4 h-4 text-accent" />
-              Peta Progres
+              Navigasi Konten
             </h3>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-5 sm:grid-cols-6 lg:grid-cols-5 gap-2 sm:gap-3">
               {questions.map((q, idx) => {
                 const isAnswered = answers[q.id];
                 const isCurrent = currentQuestionIndex === idx;
@@ -500,12 +499,12 @@ export default function ExamRoom() {
                     key={idx}
                     onClick={() => setCurrentQuestionIndex(idx)}
                     className={cn(
-                      "aspect-square rounded-xl font-black text-xs transition-all flex items-center justify-center border-2",
+                      "aspect-square rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm transition-all flex items-center justify-center border-2",
                       isCurrent 
-                        ? "bg-accent border-accent text-white scale-110 shadow-xl" 
+                        ? "bg-accent border-accent text-white scale-110 shadow-2xl shadow-accent/30 z-10" 
                         : isAnswered 
-                          ? "bg-accent/10 border-accent/20 text-accent font-bold" 
-                          : "bg-black/5 dark:bg-white/5 border-transparent opacity-40 hover:opacity-100 hover:bg-[var(--bg-card)] hover:border-[var(--border-premium)]"
+                          ? "bg-accent/10 border-accent/20 text-accent font-black" 
+                          : "bg-black/5 dark:bg-white/5 border-transparent opacity-40 hover:opacity-100 hover:border-[var(--border-premium)]"
                     )}
                   >
                     {idx + 1}

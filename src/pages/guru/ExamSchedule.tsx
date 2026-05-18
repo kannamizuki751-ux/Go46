@@ -346,22 +346,22 @@ export default function ExamSchedule() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-10 pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">Jadwal Ujian</h2>
-          <p className="text-slate-500 font-medium">Buat dan kelola sesi ujian aktif untuk siswa.</p>
+        <div className="space-y-2 text-center sm:text-left">
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">Jadwal Ujian</h2>
+          <p className="text-slate-500 font-medium text-sm sm:text-base">Buat dan kelola sesi ujian aktif untuk siswa.</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-xl shadow-indigo-200"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black transition-all shadow-xl shadow-indigo-500/20 active:scale-95"
         >
           <Plus className="w-5 h-5" />
-          Tambah Jadwal
+          <span>Tambah Jadwal</span>
         </button>
       </div>
 
-      <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm min-h-[500px]">
+      <div className="bg-white rounded-[40px] border border-slate-200 shadow-sm min-h-[400px] overflow-hidden">
         {loading ? (
           <div className="p-20 text-center">
             <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
@@ -375,16 +375,16 @@ export default function ExamSchedule() {
         ) : (
           <div className="divide-y divide-slate-100">
             {exams.map((exam) => (
-              <div key={exam.id} className="p-8 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                 <div className="flex items-center gap-6">
-                   <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-[24px] flex items-center justify-center shadow-sm">
-                     <BookOpen className="w-8 h-8" />
+              <div key={exam.id} className="p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between hover:bg-slate-50 transition-colors group gap-6 sm:gap-8">
+                 <div className="flex items-center gap-4 sm:gap-6">
+                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-indigo-50 text-indigo-600 rounded-2xl sm:rounded-[24px] flex items-center justify-center shadow-sm shrink-0">
+                     <BookOpen className="w-6 h-6 sm:w-8 sm:h-8" />
                    </div>
-                   <div className="space-y-1">
-                     <h4 className="text-xl font-black text-slate-900">{exam.title}</h4>
-                     <div className="flex items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                   <div className="space-y-1 min-w-0">
+                     <h4 className="text-lg sm:text-xl font-black text-slate-900 truncate tracking-tight">{exam.title}</h4>
+                     <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[9px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">
                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {exam.duration_minutes} Menit</span>
-                       <span className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
+                       <span className="hidden sm:inline w-1.5 h-1.5 bg-slate-200 rounded-full" />
                        <span className="flex items-center gap-1.5">
                          <Calendar className="w-3.5 h-3.5" /> 
                          {new Date(exam.start_time).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {(() => {
@@ -398,29 +398,23 @@ export default function ExamSchedule() {
                    </div>
                  </div>
 
-                  <div className="flex items-center gap-4 relative z-[50]">
+                  <div className="flex items-center gap-3 sm:gap-4 shrink-0 justify-end">
                     <button 
                       type="button"
-                      onClick={() => {
-                        console.log('Edit clicked');
-                        openEditModal(exam);
-                      }}
-                      className="p-5 bg-white border-2 border-slate-100 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 hover:shadow-xl rounded-[28px] transition-all cursor-pointer relative z-[60] active:scale-95 disabled:opacity-50"
+                      onClick={() => openEditModal(exam)}
+                      className="p-3 sm:p-4 bg-white border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 hover:shadow-lg rounded-2xl transition-all active:scale-95 disabled:opacity-50"
                       title="Edit Jadwal"
                     >
-                      <Edit3 className="w-8 h-8" />
+                      <Edit3 className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                     <button 
                       type="button"
                       disabled={isSubmitting}
-                      onClick={() => {
-                        console.log('Delete logic triggered');
-                        deleteExam(exam.id);
-                      }}
-                      className="p-5 bg-white border-2 border-slate-100 text-red-600 hover:bg-red-50 hover:border-red-200 hover:shadow-xl rounded-[28px] transition-all cursor-pointer relative z-[60] active:scale-95 disabled:opacity-50"
+                      onClick={() => deleteExam(exam.id)}
+                      className="p-3 sm:p-4 bg-white border border-slate-200 text-red-600 hover:bg-red-50 hover:border-red-200 hover:shadow-lg rounded-2xl transition-all active:scale-95 disabled:opacity-50"
                       title="Hapus Jadwal"
                     >
-                      <Trash2 className="w-8 h-8" />
+                      <Trash2 className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                   </div>
               </div>

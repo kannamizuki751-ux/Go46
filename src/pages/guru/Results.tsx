@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { 
   Trophy,
   Search, 
-  Download,
   Filter,
   CheckCircle2,
   XCircle,
@@ -137,15 +136,6 @@ export default function Results() {
           <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Hasil & Analisis</h2>
           <p className="text-slate-500 font-medium">Rekapitulasi nilai dan performa siswa secara otomatis.</p>
         </div>
-        <button 
-          className={cn(
-            "inline-flex items-center gap-2 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-xl hover:scale-105 active:scale-95 cursor-pointer bg-gradient-to-r",
-            user?.role === 'admin' ? "from-accent to-blue-600 shadow-accent/20" : "from-indigo-600 to-indigo-500 shadow-indigo-600/20"
-          )}
-        >
-          <Download className="w-5 h-5" />
-          <span>Export Excel</span>
-        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

@@ -33,7 +33,7 @@ interface Notification {
 }
 
 export default function AppLayout() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState<{id: string, name: string, role: string, email: string, details?: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -227,19 +227,6 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen flex text-[var(--primary)] transition-colors duration-500">
-      {/* Sidebar Overlay for Mobile */}
-      <AnimatePresence>
-        {!isSidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-            onClick={() => setIsSidebarOpen(true)}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Mobile Header Overlay */}
       <AnimatePresence>
         {isSidebarOpen && (
